@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Endless Runner Mobile Game</title>
+  <meta name="theme-color" content="#111827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      overflow: hidden;
+      background: linear-gradient(to top, #1e1e2f, #3a3a5f);
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    canvas {
+      display: block;
+      margin: auto;
+      background: #87ceeb;
+      border: 4px solid white;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+    }
+
+    #score {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      color: white;
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    #gameOver {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 40px;
+      text-align: center;
+      display: none;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin-top: 15px;
+      font-size: 18px;
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="score">Score: 0</div>
+<div id="menu" style="position:absolute; inset:0; background:rgba(0,0,0,0.7); display:flex; flex-direction:column; justify-content:center; align-items:center; color:white; z-index:10;">
+  <h1 style="font-size:50px; margin-bottom:20px;">ENDLESS RUNNER</h1>
+  <button onclick="startGame()">Start Game</button>
+  <button onclick="togglePause()" style="margin-top:10px;">Pause / Resume</button>
+  <p style="margin-top:20px; font-size:20px;">Press S to change skin</p>
+</div>
+<div id="gameOver">
+  <div>GAME OVER</div>
+  <button onclick="restartGame()">Restart</button>
+</div>
+
+<div id="hud" style="position:absolute; top:15px; right:15px; color:white; font-size:18px; z-index:5; text-align:right;">
+  <div id="mission">Mission: Collect 20 coins</div>
+  <div id="level">Level: 1</div>
+</div>
+
+<div id="dailyReward" style="position:absolute; top:90px; left:15px; background:rgba(0,0,0,0.6); color:white; padding:10px; border-radius:12px; z-index:5;">
+  <div>🎁 Daily Reward Available</div>
+  <button onclick="claimDailyReward()">Claim +50 Coins</button>
+</div>
+
+<div id="shop" style="position:absolute; bottom:10px; right:10px; background:rgba(0,0,0,0.6); padding:10px; border-radius:12px; color:white; z-index:5;">
+  <h3>Shop</h3>
+  <button onclick="buySkin()">Buy Skin - 20 Coins</button>
+  <button onclick="buyRevive()">Extra Life - 30 Coins</button>
+</div>
+
+<div id="mobileControls" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:20; display:flex; gap:10px;">
+  <button ontouchstart="switchLane(-1)">⬅️</button>
+  <button ontouchstart="jump()">⬆️ Jump</button>
+  <button ontouchstart="switchLane(1)">➡️</button>
+  <button ontouchstart="shootBullet()">🔥 Shoot</button>
+</div>
+
+<canvas id="gameCanvas" width="900" height="400"></canvas>
+
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const bgMusic = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8a52d3b4b.mp3?filename=gaming-music-6682.mp3');
+  bgMusic.loop = true;
+  bgMusic.volume = 0.3;
+
+  const coinSound = new Audio('https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8a4d1a4d7.mp3?filename=coin-collect-retro-8-bit-sound-effect-145251.mp3');
+
+  const player = {
+    x: 80,
+    y: 260,
+    width: 55,
+    height: 55,
+    color: '#ff4757',
+    velocityY: 0,
+    gravity: 1,
+    jumpForce: -18,
+    grounded: true,
+    skin: 0
+  };
+
+  const skins = ['#ff4757', '#1e90ff', '#2ed573', '#ffa502', '#e056fd', '#ff9f43'];
+
+  let obstacles = [];
+  let coins = [];
+  let particles = [];
+  let score = 0;
+  let totalCoins = 0;
+  let if (shieldActive) {
+        shieldActive = false;
+        return;
+      }
+
+      if (reviveOwned) {
+        reviveOwned = false;
+        return;
+      }
+
+      gameRunning = false;
+
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('highScore', highScore);
+      }
+  let paused = false;
+  let highScore = localStorage.getItem('highScore') || 0;
+  let shieldActive = false;
+  let reviveOwned = false;
+  let level = 1;
+  let missionsCompleted = 0;
+  let zombieMode = false;
+  let achievements = [];
+  let battlePassXP = 0;
+  let petActive = false;
+  let lane = 1;
+  let magnetActive = false;
+  let obstacleTimer = 0;
+  let coinTimer = 0;
+  let speed = 7;
+
+  function drawBackground() {
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, '#70a1ff');
+    gradient.addColorStop(1, '#dfe4ea');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(750, 70, 40, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawGround() {
+    ctx.fillStyle = '#2f3542';
+    ctx.fillRect(0, canvas.height - 35, canvas.width, 35);
+  }
+
+  function drawPlayer() {
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+
+    ctx.fillStyle = 'white';
+    ctx.fillRect(player.x + 10, player.y + 12, 8, 8);
+    ctx.fillRect(player.x + 35, player.y + 12, 8, 8);
+  }
+
+  function updatePlayer() {
+    player.velocityY += player.gravity;
+    player.y += player.velocityY;
+
+    if (player.y + player.height >= canvas.height - 35) {
+      player.y = canvas.height - player.height - 35;
+      player.velocityY = 0;
+      player.grounded = true;
+    }
+  }
+
+  function createObstacle() {
+    if (score > 3000) {
+      zombieMode = true;
+    }
+    const height = 40 + Math.random() * 60;
+
+    obstacles.push({
+      x: canvas.width,
+      y: canvas.height - height - 35,
+      width: 40,
+      height,
+      speed,
+      color: zombieMode ? '#145a32' : '#1e272e',
+      zombie: zombieMode
+    });
+  }
+
+  function drawObstacles() {
+    obstacles.forEach(obs => {
+      ctx.fillStyle = obs.color;
+
+      if (obs.zombie) {
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(obs.x + 5, obs.y - 10, 30, 10);
+      }
+      ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+
+      ctx.fillStyle = 'red';
+      ctx.fillRect(obs.x + 10, obs.y + 10, 8, 8);
+    });
+  }
+
+  function updateObstacles() {
+    obstacles.forEach(obs => {
+      obs.x -= obs.speed;
+
+      if (
+        player.x < obs.x + obs.width &&
+        player.x + player.width > obs.x &&
+        player.y < obs.y + obs.height &&
+        player.y + player.height > obs.y
+      ) {
+        gameOver();
+      }
+    });
+
+    obstacles = obstacles.filter(obs => obs.x + obs.width > 0 && !obs.destroyed);
+  }
+
+  function createCoin() {
+    coins.push({
+      x: canvas.width,
+      y: 120 + Math.random() * 150,
+      radius: 12,
+      speed
+    });
+  }
+
+  function drawCoins() {
+    coins.forEach(c => {
+      ctx.fillStyle = 'gold';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function updateCoins() {
+    if (magnetActive) {
+      coins.forEach(c => {
+        c.x += (player.x - c.x) * 0.03;
+        c.y += (player.y - c.y) * 0.03;
+      });
+    }
+    coins.forEach(c => {
+      c.x -= c.speed;
+
+      const dx = player.x + player.width / 2 - c.x;
+      const dy = player.y + player.height / 2 - c.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance < 35) {
+        totalCoins++;
+        coinSound.play();
+        createParticles(c.x, c.y);
+        c.collected = true;
+      }
+    });
+
+    coins = coins.filter(c => !c.collected && c.x > -20);
+  }
+
+  function createParticles(x, y) {
+    for (let i = 0; i < 10; i++) {
+      particles.push({
+        x,
+        y,
+        size: Math.random() * 5,
+        speedX: (Math.random() - 0.5) * 5,
+        speedY: (Math.random() - 0.5) * 5,
+        life: 30
+      });
+    }
+  }
+
+  function drawParticles() {
+    particles.forEach(p => {
+      if (p.bullet) {
+        obstacles.forEach(obs => {
+          if (
+            p.x < obs.x + obs.width &&
+            p.x + p.size > obs.x &&
+            p.y < obs.y + obs.height &&
+            p.y + p.size > obs.y
+          ) {
+            obs.destroyed = true;
+            p.life = 0;
+            score += 100;
+          }
+        });
+      }
+      ctx.fillStyle = 'yellow';
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+    });
+  }
+
+  function updateParticles() {
+    particles.forEach(p => {
+      p.x += p.speedX;
+      p.y += p.speedY;
+      p.life--;
+    });
+
+    particles = particles.filter(p => p.life > 0);
+  }
+
+  function buySkin() {
+    if (totalCoins >= 20) {
+      totalCoins -= 20;
+      player.skin = (player.skin + 1) % skins.length;
+      player.color = skins[player.skin];
+    }
+  }
+
+  function claimDailyReward() {
+    const claimed = localStorage.getItem('dailyRewardClaimed');
+    const today = new Date().toDateString();
+
+    if (claimed !== today) {
+      totalCoins += 50;
+      localStorage.setItem('dailyRewardClaimed', today);
+      alert('Daily Reward Claimed!');
+    } else {
+      alert('Reward already claimed today');
+    }
+  }
+
+  function unlockAchievement(name) {
+    if (!achievements.includes(name)) {
+      achievements.push(name);
+      alert('Achievement Unlocked: ' + name);
+    }
+  }
+
+  function activatePet() {
+    petActive = true;
+  }
+
+  function buyRevive() {
+    if (totalCoins >= 30) {
+      totalCoins -= 30;
+      reviveOwned = true;
+    }
+  }
+
+  function switchLane(direction) {
+    lane += direction;
+
+    if (lane < 0) lane = 0;
+    if (lane > 2) lane = 2;
+
+    player.x = 80 + lane * 120;
+  }
+
+  function checkMission() {
+    if (totalCoins >= (missionsCompleted + 1) * 20) {
+      missionsCompleted++;
+      level++;
+      battlePassXP += 100;
+      speed += 1;
+      alert('Mission Complete! Level Up!');
+      unlockAchievement('Level ' + level + ' Reached');
+
+      if (level >= 5) {
+        activatePet();
+      }
+    }
+
+    document.getElementById('mission').innerText = 'Mission: Collect ' + ((missionsCompleted + 1) * 20) + ' coins';
+    document.getElementById('level').innerText = 'Level: ' + level;
+  }
+
+  function updateScore() {
+    score++;
+    document.getElementById('score').innerText = `Score: ${score} | Coins: ${totalCoins}`;
+    checkMission();
+  }
+
+  function startGame() {
+    document.getElementById('menu').style.display = 'none';
+    gameRunning = true;
+    // Start from menu
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+  }
+
+  function togglePause() {
+    paused = !paused;
+
+    if (!paused && gameRunning) {
+      animate();
+    }
+  }
+
+  function activateShield() {
+    shieldActive = true;
+    setTimeout(() => shieldActive = false, 5000);
+  }
+
+  function activateMagnet() {
+    magnetActive = true;
+    setTimeout(() => magnetActive = false, 5000);
+  }
+
+  function gameOver() {
+    gameRunning = false;
+    bgMusic.pause();
+    document.getElementById('gameOver').style.display = 'block';
+  }
+
+  function restartGame() {
+    player.y = 260;
+    player.velocityY = 0;
+    obstacles = [];
+    coins = [];
+    particles = [];
+    score = 0;
+    totalCoins = 0;
+    speed = 7;
+    gameRunning = true;
+
+    bgMusic.play();
+
+    document.getElementById('gameOver').style.display = 'none';
+    animate();
+  }
+
+  function animate() {
+    if (paused) {
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = 'white';
+      ctx.font = '40px Arial';
+      ctx.fillText('PAUSED', 360, 200);
+      return;
+    }
+    if (!gameRunning) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    drawBackground();
+    drawGround();
+
+    drawPlayer();
+
+    if (petActive) {
+      ctx.fillStyle = 'orange';
+      ctx.beginPath();
+      ctx.arc(player.x - 25, player.y + 20, 15, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (shieldActive) {
+      ctx.strokeStyle = 'cyan';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(player.x + 25, player.y + 25, 40, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    updatePlayer();
+
+    drawObstacles();
+    updateObstacles();
+
+    drawCoins();
+    updateCoins();
+
+    drawParticles();
+    updateParticles();
+
+    obstacleTimer++;
+    coinTimer++;
+
+    if (obstacleTimer > 90) {
+      createObstacle();
+      obstacleTimer = 0;
+    }
+
+    if (coinTimer > 70) {
+      createCoin();
+      coinTimer = 0;
+    }
+
+    if (score % 1000 === 0 && score !== 0) {
+      activateShield();
+    }
+
+    if (score % 1500 === 0 && score !== 0) {
+      activateMagnet();
+    }
+
+    if (score % 500 === 0) {
+      speed += 0.3;
+    }
+
+    updateScore();
+
+    ctx.fillStyle = 'white';
+    ctx.font = '22px Arial';
+    ctx.fillText('High Score: ' + highScore, 650, 30);
+    ctx.fillText('Level: ' + level, 650, 120);
+    ctx.fillText('Battle Pass XP: ' + battlePassXP, 650, 210);
+    ctx.fillText('Achievements: ' + achievements.length, 650, 240);
+
+    if (reviveOwned) {
+      ctx.fillText('Extra Life Ready', 650, 150);
+    }
+
+    if (zombieMode) {
+      ctx.fillText('Zombie Mode Activated', 650, 180);
+    }
+
+    if (shieldActive) {
+      ctx.fillText('Shield Active', 650, 60);
+    }
+
+    if (magnetActive) {
+      ctx.fillText('Coin Magnet Active', 650, 90);
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  function jump() {
+    if (player.grounded) {
+      player.velocityY = player.jumpForce;
+      player.grounded = false;
+    }
+  }
+
+  function shootBullet() {
+    particles.push({
+      x: player.x + 55,
+      y: player.y + 20,
+      size: 10,
+      speedX: 12,
+      speedY: 0,
+      bullet: true,
+      life: 80
+    });
+  }
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space' || e.code === 'ArrowUp') {
+      jump();
+    }
+
+    if (e.code === 'ArrowLeft') {
+      switchLane(-1);
+    }
+
+    if (e.code === 'ArrowRight') {
+      switchLane(1);
+    }
+
+    if (e.code === 'KeyF') {
+      shootBullet();
+    }
+
+    if (e.code === 'KeyS') {
+      player.skin = (player.skin + 1) % skins.length;
+      player.color = skins[player.skin];
+    }
+  });
+
+  canvas.addEventListener('touchmove', (e) => {
+    const touchX = e.touches[0].clientX;
+
+    if (touchX < window.innerWidth / 2) {
+      switchLane(-1);
+    } else {
+      switchLane(1);
+    }
+  });
+
+  canvas.addEventListener('touchstart', () => {
+    jump();
+  });
+
+  bgMusic.play();
+  animate();
+</script>
+
+</body>
+</html>
